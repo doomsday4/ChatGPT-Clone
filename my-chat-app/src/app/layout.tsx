@@ -2,12 +2,17 @@
 import './globals.css';
 import { TRPCProvider } from '@/trpc/provider';
 import { ReactNode } from 'react';
+import { NextAuthProvider } from "@/components/providers/NextAuthProvider";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <TRPCProvider>{children}</TRPCProvider>
+        <TRPCProvider>
+          <NextAuthProvider>
+            {children}
+          </NextAuthProvider>
+        </TRPCProvider>
       </body>
     </html>
   );
