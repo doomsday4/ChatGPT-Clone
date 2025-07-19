@@ -8,7 +8,7 @@ export const messageRoleEnum = pgEnum('message_role', ['user', 'assistant']);
 // --- Users Table ---
 // This table will store public user information and link to Supabase auth.users
 export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(), // Supabase auth.users ID will be a UUID
+  id: uuid('id').primaryKey(), // Supabase auth.users ID will be a UUID
   email: text('email').unique(), //for authenticated users
   isAnonymous: boolean('is_anonymous').default(false).notNull(), // to differentiate anonymous users
   createdAt: timestamp('created_at').defaultNow().notNull(),
