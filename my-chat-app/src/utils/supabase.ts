@@ -4,7 +4,7 @@ import type { SupabaseClientOptions } from '@supabase/supabase-js';
 
 const options: SupabaseClientOptions<'public'> = {
   auth: {
-    persistSession: true,
+    persistSession: true, // ensures the user remains logged in across page refreshes and app reloads
     autoRefreshToken: true,
   },
 };

@@ -30,15 +30,25 @@ export default function SignInPage() {
   };
 
   const handleGuestSignIn = async () => {
-    const { data, error } = await supabase.auth.signInAnonymously();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
 
-    if (error) {
-      console.error("Anonymous sign-in error:", error.message);
-      setError("Guest sign-in failed");
-    } else {
-      console.log("Signed in anonymously:", data);
+    if (user) {
+      // Already signed in, redirect
       router.push("/");
+      return;
     }
+
+    const { data, error: anonError } = await supabase.auth.signInAnonymously();
+
+    if (anonError) {
+      setError(anonError.message);
+      return;
+    }
+
+    router.push("/");
   };
 
   return (
