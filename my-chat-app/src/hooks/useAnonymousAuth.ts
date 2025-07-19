@@ -1,3 +1,4 @@
+'use client'
 // src/hooks/useAnonymousAuth.ts
 import { useEffect, useState } from 'react';
 import { supabase } from '@/utils/supabase';
@@ -26,4 +27,26 @@ export function useAnonymousAuth() {
   }, []);
 
   return { user };
+}
+
+export function useUserStatus() {
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user = sessionData.session?.user;
+
+      if (user) {
+        const anon = user.user_metadata?.provider === 'anonymous' || user.user_metadata?.is_anonymous;
+        setIsAnonymous(anon);
+        setUserId(user.id);
+      }
+    };
+
+    checkSession();
+  }, []);
+
+  return { isAnonymous, userId };
 }
