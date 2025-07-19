@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/utils/supabase";
 
 export default function SignInPage() {
   const [email, setEmail] = useState("");
@@ -24,7 +25,19 @@ export default function SignInPage() {
     if (res?.error) {
       setError(res.error);
     } else {
-      router.push("/"); // to be updated as to where to go after login
+      router.push("/");
+    }
+  };
+
+  const handleGuestSignIn = async () => {
+    const { data, error } = await supabase.auth.signInAnonymously();
+
+    if (error) {
+      console.error("Anonymous sign-in error:", error.message);
+      setError("Guest sign-in failed");
+    } else {
+      console.log("Signed in anonymously:", data);
+      router.push("/");
     }
   };
 
@@ -69,6 +82,15 @@ export default function SignInPage() {
           </button>
         </div>
       </form>
+
+      <div className="mt-4 text-center">
+        <button
+          onClick={handleGuestSignIn}
+          className="bg-gray-700 text-white px-4 py-2 rounded"
+        >
+          Continue as Guest
+        </button>
+      </div>
     </div>
   );
 }
