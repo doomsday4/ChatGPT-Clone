@@ -6,6 +6,7 @@ import { JWT } from "next-auth/jwt";
 declare module "next-auth" {
   interface User extends DefaultUser {
     id: string;
+    name: string;
   }
 
   interface Session extends DefaultSession {
@@ -18,6 +19,16 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     id: string;
+    name: string;
     accessToken?: string;
+  }
+}
+
+declare module '@supabase/supabase-js' {
+  interface User extends SupabaseAuthUser {
+    // Add custom properties expected on Supabase User object
+    // Supabase stores custom data in user_metadata, so we access it there.
+    // NOTE: it comes from user_metadata.full_name.
+    name?: string;
   }
 }

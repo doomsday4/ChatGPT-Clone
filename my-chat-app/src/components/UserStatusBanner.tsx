@@ -28,7 +28,7 @@ export function UserStatusBanner() {
     <div className="bg-yellow-200 text-black p-3 text-sm">
       {isAnonymous
         ? "You're using the app as a guest. Chat history will be saved to this device." // Clarified saving
-        : `Welcome back, ${user.email || user.id}!`}
+        : `Welcome back, ${user.name || user.email || 'User'}!`}
     </div>
   );
 }

@@ -10,6 +10,7 @@ export const messageRoleEnum = pgEnum('message_role', ['user', 'assistant']);
 export const users = pgTable('users', {
   id: uuid('id').primaryKey(), // Supabase auth.users ID will be a UUID
   email: text('email').unique(), //for authenticated users
+  name: text('name'),
   isAnonymous: boolean('is_anonymous').default(false).notNull(), // to differentiate anonymous users
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),

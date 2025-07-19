@@ -29,15 +29,18 @@ export function useAuthStatus() {
       let determinedSession: Session | null = null;
       let determinedUser: User | null = null;
       let determinedIsAnonymous = false;
+      let determinedName: string | undefined = undefined;
 
       // Prioritize NextAuth session if authenticated
       if (nextAuthStatus === 'authenticated' && nextAuthSession?.user?.id) {
         determinedUser = {
           id: nextAuthSession.user.id,
           email: nextAuthSession.user.email || '',
+          name: nextAuthSession.user.name || nextAuthSession.user.email || '',
         } as User;
         determinedSession = nextAuthSession as unknown as Session;
         determinedIsAnonymous = false;
+        determinedName = nextAuthSession.user.name || undefined;
         console.log("Session determined: Authenticated via NextAuth", determinedUser.id);
       } else if (nextAuthStatus === 'unauthenticated') {
         // If NextAuth is definitively unauthenticated, check Supabase directly
@@ -56,6 +59,7 @@ export function useAuthStatus() {
             determinedUser = data.user;
             determinedSession = data.session;
             determinedIsAnonymous = true;
+            determinedName = undefined;
             console.log("Session determined: Successfully signed in anonymously", determinedUser.id);
           } else if (error) {
             console.error("Anonymous sign-in failed:", error.message);
@@ -69,7 +73,8 @@ export function useAuthStatus() {
 
       // Update state once all determination is done
       setSession(determinedSession);
-      setUser(determinedUser);
+      // Ensure the user object passed to state also has the name
+      setUser(determinedUser ? { ...determinedUser, name: determinedName || determinedUser.email } : null); // Update setUser
       setIsAnonymous(determinedIsAnonymous);
       setLoading(false); // End loading
     };
@@ -95,6 +100,7 @@ export function useAuthStatus() {
           await ensureUserProfileMutation.mutateAsync({
             userId: user.id,
             email: user.email || undefined,
+            name: user.name || undefined,
             isAnonymous: isAnonymous, // using state from Effect 1
           });
           console.log("Profile ensured successfully for:", user.id);
