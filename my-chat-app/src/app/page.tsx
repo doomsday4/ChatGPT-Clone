@@ -12,6 +12,7 @@ import { TRPCProvider } from '@/components/providers/TRPCProvider';
 import { v4 as uuidv4 } from 'uuid';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { format, isToday, isYesterday } from 'date-fns';
 
 function ChatPage() {
     const { data: session, status } = useSession();
@@ -82,13 +83,13 @@ function ChatPage() {
                 return;
             }
         }
-        
+
         sendMessageMutation.mutate({
             conversationId: targetConvId,
             content: contentToSend,
         });
     };
-    
+
     const handleNewChat = () => {
         setActiveConversationId(null);
         setMessage('');
@@ -99,6 +100,17 @@ function ChatPage() {
             chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
     }, [messagesQuery.data]);
+
+    //helper func for timestamp formatting
+    const formatHistoryTimestamp = (date: Date) => {
+        if (isToday(date)) {
+            return format(date, 'p'); // e.g., "2:51 PM"
+        }
+        if (isYesterday(date)) {
+            return 'Yesterday';
+        }
+        return format(date, 'MMM d'); // e.g., "Jul 21"
+    };
 
     if (status === 'loading') {
         return <p className="flex h-screen items-center justify-center">Loading session...</p>;
@@ -126,13 +138,17 @@ function ChatPage() {
                             <li key={conv.id}>
                                 <button
                                     onClick={() => setActiveConversationId(conv.id)}
-                                    className={`w-full text-left p-2 rounded-md truncate ${
-                                        activeConversationId === conv.id
-                                            ? 'bg-blue-600'
-                                            : 'hover:bg-gray-700'
-                                    }`}
+                                    className={`w-full text-left p-2 rounded-md truncate ${activeConversationId === conv.id
+                                        ? 'bg-blue-600'
+                                        : 'hover:bg-gray-700'
+                                        }`}
                                 >
-                                    {conv.title}
+                                    <div className="flex justify-between items-center w-full">
+                                        <span className="truncate pr-2">{conv.title}</span>
+                                        <span className="text-xs text-gray-400 flex-shrink-0">
+                                            {formatHistoryTimestamp(new Date(conv.updatedAt))}
+                                        </span>
+                                    </div>
                                 </button>
                             </li>
                         ))}
@@ -155,6 +171,9 @@ function ChatPage() {
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                         {msg.content}
                                     </ReactMarkdown>
+                                </div>
+                                <div className={`text-xs text-gray-500 mt-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                                    {format(new Date(msg.createdAt), 'p')}
                                 </div>
                             </div>
                         ))
