@@ -20,7 +20,7 @@ function ChatPage() {
     const utils = api.useUtils();
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const [isLoading] = useState(false);
-
+    //tRPC Queries and Mutations
     const conversationsQuery = api.chat.getConversations.useQuery(undefined, {
         enabled: !!session,
     });
@@ -30,13 +30,7 @@ function ChatPage() {
         { enabled: !!activeConversationId }
     );
 
-    const createConversationMutation = api.chat.createConversation.useMutation({
-        onSuccess: (newConversation) => {
-            utils.chat.getConversations.invalidate();
-            setActiveConversationId(newConversation.id);
-            handleSendMessage(null, newConversation.id);
-        }
-    });
+    const createConversationMutation = api.chat.createConversation.useMutation();
 
     const sendMessageMutation = api.chat.sendMessage.useMutation({
         onMutate: async (newMessage) => {
@@ -66,19 +60,29 @@ function ChatPage() {
         },
     });
 
-    const handleSendMessage = async (e: React.FormEvent | null, convId?: string) => {
-        e?.preventDefault();
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
         const contentToSend = message;
         if (!contentToSend.trim() || !session) return;
         setMessage('');
 
-        const targetConvId = convId || activeConversationId;
+        let targetConvId = activeConversationId;
 
         if (!targetConvId) {
-            createConversationMutation.mutate({ title: contentToSend.substring(0, 30) });
-            return;
+            try {
+                const newConversation = await createConversationMutation.mutateAsync({
+                    title: contentToSend.substring(0, 30)
+                });
+                utils.chat.getConversations.invalidate();
+                setActiveConversationId(newConversation.id);
+                targetConvId = newConversation.id;
+            } catch (error) {
+                console.error("Failed to create conversation:", error);
+                setMessage(contentToSend);
+                return;
+            }
         }
-
+        
         sendMessageMutation.mutate({
             conversationId: targetConvId,
             content: contentToSend,
@@ -112,7 +116,7 @@ function ChatPage() {
     return (
         <div className="flex h-screen bg-gray-900 text-white">
             <aside className="w-64 flex-shrink-0 bg-gray-800 p-4 flex flex-col">
-                <Button onClick={handleNewChat} className="mb-4 w-full">
+                <Button onClick={handleNewChat} className="mb-4 w-full bg-blue-600 hover:bg-blue-700">
                     + New Chat
                 </Button>
                 <div className="flex-grow overflow-y-auto">
