@@ -24,3 +24,53 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@layer base {
+    .prose {
+        @apply text-sm;
+    }
+    .prose p {
+        @apply my-2;
+    }
+    .prose a {
+        @apply text-blue-600 underline;
+    }
+    .prose strong {
+        @apply font-bold;
+    }
+    .prose ol,
+    .prose ul {
+        @apply my-2 pl-6;
+    }
+    .prose ol {
+        @apply list-decimal;
+    }
+    .prose ul {
+        @apply list-disc;
+    }
+    .prose li {
+        @apply my-1;
+    }
+    .prose pre {
+        @apply bg-gray-800 text-white p-3 my-3 rounded-lg overflow-x-auto;
+    }
+    .prose code {
+        @apply bg-gray-300 text-red-600 rounded px-1 py-0.5 font-mono text-xs;
+    }
+    .prose pre code {
+        @apply bg-transparent text-inherit p-0 rounded-none;
+    }
+    .prose blockquote {
+        @apply border-l-4 border-gray-400 pl-4 italic my-3;
+    }
+    .prose table {
+        @apply my-3 w-full border-collapse border border-gray-400;
+    }
+    .prose th,
+    .prose td {
+        @apply border border-gray-400 px-2 py-1;
+    }
+    .prose th {
+        @apply bg-gray-200 font-bold;
+    }
+}
