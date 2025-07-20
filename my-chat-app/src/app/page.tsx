@@ -14,6 +14,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { format, isToday, isYesterday } from 'date-fns';
 
+export const dynamic = 'force-dynamic';
+
 function ChatPage() {
     const { data: session, status } = useSession();
     const [message, setMessage] = useState('');
