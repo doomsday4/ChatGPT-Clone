@@ -10,7 +10,8 @@ import { eq } from "drizzle-orm";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-export const authOptions: AuthOptions = {
+//`export` keyword has been removed
+const authOptions: AuthOptions = {
     providers: [
         CredentialsProvider({
             name: "Credentials",
@@ -29,14 +30,7 @@ export const authOptions: AuthOptions = {
                     const { data, error } = await supabase.auth.signInAnonymously();
                     if (error) throw new Error(error.message);
                     if (!data.user) throw new Error("Could not create anonymous user.");
-                    
-                    //return "guest" user object for NextAuth to create session with
-                    return {
-                        id: data.user.id,
-                        name: 'Guest',
-                        email: null,
-                        isAnonymous: true, // Set the flag
-                    };
+                    return { id: data.user.id, name: 'Guest', email: null, isAnonymous: true };
                 }
                 
                 if (credentials.mode === "signup") {
@@ -59,10 +53,7 @@ export const authOptions: AuthOptions = {
                         throw new Error(error.message);
                     }
                     if (!data.user) throw new Error("User data not returned after sign in.");
-
-                    //profile creation now happens on the first successful sign-in only
                     const existingProfile = await db.query.users.findFirst({ where: eq(users.id, data.user.id) });
-                    
                     if (!existingProfile) {
                         await db.insert(users).values({
                             id: data.user.id,
