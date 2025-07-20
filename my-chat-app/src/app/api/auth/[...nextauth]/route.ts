@@ -25,38 +25,37 @@ export const authOptions: AuthOptions = {
                 if (!credentials) throw new Error("No credentials provided.");
                 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+                if (credentials.mode === 'anonymous') {
+                    const { data, error } = await supabase.auth.signInAnonymously();
+                    if (error) throw new Error(error.message);
+                    if (!data.user) throw new Error("Could not create anonymous user.");
+                    
+                    //return "guest" user object for NextAuth to create session with
+                    return {
+                        id: data.user.id,
+                        name: 'Guest',
+                        email: null,
+                        isAnonymous: true, // Set the flag
+                    };
+                }
+                
                 if (credentials.mode === "signup") {
                     if (credentials.password !== credentials.confirmPassword) throw new Error("Passwords do not match.");
-                    
-                    // This creates the user in Supabase's auth system and sends the verification email.
                     const { data, error } = await supabase.auth.signUp({
                         email: credentials.email,
                         password: credentials.password,
                         options: { data: { full_name: credentials.name } },
                     });
-
                     if (error) throw new Error(error.message);
-                    
-                    //no longer create the public profile here.
-                    //instead, throw error to tell frontend to show a message
-                    if (data.user && !data.session) {
-                        throw new Error("SIGNUP_SUCCESS_VERIFY_EMAIL");
-                    }
-
-                    // NOTE: part should ideally not be reached if email verification is on
+                    if (data.user && !data.session) throw new Error("SIGNUP_SUCCESS_VERIFY_EMAIL");
                     return { id: data.user!.id, email: data.user!.email, name: credentials.name };
-
                 } else { // Sign-in logic
                     const { data, error } = await supabase.auth.signInWithPassword({
                         email: credentials.email,
                         password: credentials.password,
                     });
-
                     if (error) {
-                        // Supabase provides clear error for unverified emails
-                        if (error.message.includes("Email not confirmed")) {
-                            throw new Error("Please verify your email before signing in.");
-                        }
+                        if (error.message.includes("Email not confirmed")) throw new Error("Please verify your email before signing in.");
                         throw new Error(error.message);
                     }
                     if (!data.user) throw new Error("User data not returned after sign in.");
@@ -72,7 +71,6 @@ export const authOptions: AuthOptions = {
                             isAnonymous: false,
                         });
                     }
-                    
                     const userName = data.user.user_metadata?.full_name || data.user.email;
                     return { id: data.user.id, email: data.user.email, name: userName };
                 }
@@ -85,8 +83,8 @@ export const authOptions: AuthOptions = {
         jwt({ token, user }) {
             if (user) {
                 token.id = user.id;
-                // token.name = user.name;
-                token.email = user.email;
+                token.name = user.name;
+                token.isAnonymous = user.isAnonymous;
             }
             return token;
         },
@@ -95,6 +93,7 @@ export const authOptions: AuthOptions = {
                 session.user.id = token.id as string;
                 session.user.name = token.name as string;
                 session.user.email = token.email as string;
+                session.user.isAnonymous = token.isAnonymous as boolean;
             }
             return session;
         },

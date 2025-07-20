@@ -21,16 +21,18 @@ function ChatPage() {
     const utils = api.useUtils();
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const [isLoading] = useState(false);
-    //tRPC Queries and Mutations
+
+    const isAnonymous = session?.user?.isAnonymous ?? false;
+
     const conversationsQuery = api.chat.getConversations.useQuery(undefined, {
-        enabled: !!session,
+        enabled: !!session && !isAnonymous,
     });
 
     const messagesQuery = api.chat.getMessages.useQuery(
-        { conversationId: activeConversationId! },
+        { conversationId: activeConversationId! }, 
         { enabled: !!activeConversationId }
     );
-
+    
     const createConversationMutation = api.chat.createConversation.useMutation();
 
     const sendMessageMutation = api.chat.sendMessage.useMutation({
@@ -57,7 +59,9 @@ function ChatPage() {
         },
         onSettled: () => {
             utils.chat.getMessages.invalidate({ conversationId: activeConversationId });
-            utils.chat.getConversations.invalidate();
+            if (!isAnonymous) {
+                utils.chat.getConversations.invalidate();
+            }
         },
     });
 
@@ -66,15 +70,15 @@ function ChatPage() {
         const contentToSend = message;
         if (!contentToSend.trim() || !session) return;
         setMessage('');
-
         let targetConvId = activeConversationId;
-
         if (!targetConvId) {
             try {
                 const newConversation = await createConversationMutation.mutateAsync({
                     title: contentToSend.substring(0, 30)
                 });
-                utils.chat.getConversations.invalidate();
+                if (!isAnonymous) {
+                    utils.chat.getConversations.invalidate();
+                }
                 setActiveConversationId(newConversation.id);
                 targetConvId = newConversation.id;
             } catch (error) {
@@ -83,13 +87,12 @@ function ChatPage() {
                 return;
             }
         }
-
         sendMessageMutation.mutate({
             conversationId: targetConvId,
             content: contentToSend,
         });
     };
-
+    
     const handleNewChat = () => {
         setActiveConversationId(null);
         setMessage('');
@@ -101,21 +104,20 @@ function ChatPage() {
         }
     }, [messagesQuery.data]);
 
-    //helper func for timestamp formatting
     const formatHistoryTimestamp = (date: Date) => {
         if (isToday(date)) {
-            return format(date, 'p'); // e.g., "2:51 PM"
+            return format(date, 'p');
         }
         if (isYesterday(date)) {
             return 'Yesterday';
         }
-        return format(date, 'MMM d'); // e.g., "Jul 21"
+        return format(date, 'MMM d');
     };
 
     if (status === 'loading') {
         return <p className="flex h-screen items-center justify-center">Loading session...</p>;
     }
-
+    
     if (!session) {
         return (
             <div className="flex flex-col items-center justify-center h-screen">
@@ -127,75 +129,59 @@ function ChatPage() {
 
     return (
         <div className="flex h-screen bg-gray-900 text-white">
-            <aside className="w-64 flex-shrink-0 bg-gray-800 p-4 flex flex-col">
-                <Button onClick={handleNewChat} className="mb-4 w-full bg-blue-600 hover:bg-blue-700">
-                    + New Chat
-                </Button>
-                <div className="flex-grow overflow-y-auto">
-                    <h2 className="text-lg font-semibold mb-2">History</h2>
-                    <ul className="space-y-2">
-                        {conversationsQuery.data?.map((conv) => (
-                            <li key={conv.id}>
-                                <button
-                                    onClick={() => setActiveConversationId(conv.id)}
-                                    className={`w-full text-left p-2 rounded-md truncate ${activeConversationId === conv.id
-                                        ? 'bg-blue-600'
-                                        : 'hover:bg-gray-700'
-                                        }`}
-                                >
-                                    <div className="flex justify-between items-center w-full">
-                                        <span className="truncate pr-2">{conv.title}</span>
-                                        <span className="text-xs text-gray-400 flex-shrink-0">
-                                            {formatHistoryTimestamp(new Date(conv.updatedAt))}
-                                        </span>
-                                    </div>
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-                <div className="mt-auto">
-                    <UserStatusBanner />
-                    <Button onClick={() => signOut()} className="w-full mt-2">
-                        Sign Out
+            {!isAnonymous && (
+                <aside className="w-64 flex-shrink-0 bg-gray-800 p-4 flex flex-col">
+                    <Button onClick={handleNewChat} className="mb-4 w-full bg-blue-600 hover:bg-blue-700">
+                        + New Chat
                     </Button>
-                </div>
-            </aside>
+                    <div className="flex-grow overflow-y-auto">
+                        <h2 className="text-lg font-semibold mb-2">History</h2>
+                        <ul className="space-y-1">
+                            {conversationsQuery.data?.map((conv) => (
+                                <li key={conv.id}>
+                                    <button onClick={() => setActiveConversationId(conv.id)} className={`w-full text-left p-2 rounded-md ${activeConversationId === conv.id ? 'bg-blue-600' : 'hover:bg-gray-700'}`}>
+                                        <div className="flex justify-between items-center w-full">
+                                            <span className="truncate pr-2">{conv.title}</span>
+                                            <span className="text-xs text-gray-400 flex-shrink-0">{formatHistoryTimestamp(new Date(conv.updatedAt))}</span>
+                                        </div>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <div className="mt-auto">
+                        <UserStatusBanner />
+                        <Button onClick={() => signOut()} className="w-full mt-2">
+                            Sign Out
+                        </Button>
+                    </div>
+                </aside>
+            )}
 
             <main className="flex-1 flex flex-col p-6">
+                {isAnonymous && (
+                    <div className="text-center mb-4 p-2 bg-blue-900/50 rounded-md text-sm">
+                        You are chatting as a guest. <Button variant="link" className="p-0 h-auto" onClick={() => signIn()}>Sign in</Button> to save your history.
+                    </div>
+                )}
                 <div ref={chatContainerRef} className="flex-grow overflow-y-auto mb-4 p-4 bg-gray-800 rounded-lg">
-                    {activeConversationId ? (
+                    {(activeConversationId || isAnonymous) ? (
                         messagesQuery.data?.map((msg) => (
-                            <div key={msg.id} className={`mb-3 w-fit max-w-[90%] ${msg.role === 'user' ? 'ml-auto' : 'mr-auto'}`}>
+                            <div key={msg.id} className={`mb-4 w-fit max-w-[90%] ${msg.role === 'user' ? 'ml-auto' : 'mr-auto'}`}>
                                 <div className={`p-3 rounded-lg text-black ${msg.role === 'user' ? 'bg-blue-400' : 'bg-gray-300'}`}>
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {msg.content}
-                                    </ReactMarkdown>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                                 </div>
-                                <div className={`text-xs text-gray-500 mt-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                                    {format(new Date(msg.createdAt), 'p')}
-                                </div>
+                                <div className={`text-xs text-gray-500 mt-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>{format(new Date(msg.createdAt), 'p')}</div>
                             </div>
                         ))
                     ) : (
-                        <div className="flex h-full items-center justify-center">
-                            <p className="text-gray-400">Select a conversation or start a new one.</p>
-                        </div>
+                        <div className="flex h-full items-center justify-center"><p className="text-gray-400">Select a conversation or start a new one.</p></div>
                     )}
                     {isLoading && <p className="text-sm text-gray-400 mt-2">AI is thinking...</p>}
                 </div>
                 <form onSubmit={handleSendMessage} className="flex gap-4">
-                    <Input
-                        type="text"
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Type your message..."
-                        className="flex-grow bg-gray-700 border-gray-600 text-white"
-                        disabled={isLoading}
-                    />
-                    <Button type="submit" disabled={isLoading || !message.trim()}>
-                        Send
-                    </Button>
+                    <Input type="text" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Type your message..." className="flex-grow bg-gray-700 border-gray-600 text-white" disabled={isLoading} />
+                    <Button type="submit" disabled={isLoading || !message.trim()}>Send</Button>
                 </form>
             </main>
         </div>
@@ -203,11 +189,5 @@ function ChatPage() {
 }
 
 export default function Home() {
-    return (
-        <NextAuthProvider>
-            <TRPCProvider>
-                <ChatPage />
-            </TRPCProvider>
-        </NextAuthProvider>
-    );
+    return (<NextAuthProvider><TRPCProvider><ChatPage /></TRPCProvider></NextAuthProvider>);
 }

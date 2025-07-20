@@ -2,33 +2,34 @@
 import NextAuth, { DefaultSession, DefaultUser } from "next-auth";
 import { JWT } from "next-auth/jwt";
 
-// Extend the NextAuth User type
 declare module "next-auth" {
   interface User extends DefaultUser {
     id: string;
     name: string | null;
+    isAnonymous?: boolean;
   }
 
   interface Session extends DefaultSession {
-    user: User;
+    user: User & {
+        id: string;
+        isAnonymous?: boolean;
+    };
     accessToken?: string;
   }
 }
 
-// Extend the JWT type
 declare module "next-auth/jwt" {
   interface JWT {
     id: string;
-    name: string;
+    name: string | null;
+    email: string | null;
+    isAnonymous?: boolean;
     accessToken?: string;
   }
 }
 
 declare module '@supabase/supabase-js' {
   interface User extends SupabaseAuthUser {
-    // Add custom properties expected on Supabase User object
-    // Supabase stores custom data in user_metadata, so we access it there.
-    // NOTE: it comes from user_metadata.full_name.
     name?: string;
   }
 }
