@@ -1,121 +1,122 @@
 // src/hooks/useAuthStatus.ts
-'use client';
-
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useSession } from 'next-auth/react';
 import { supabase } from '@/utils/supabase';
-import { Session, User } from '@supabase/supabase-js';
-import { useSession as useNextAuthSession } from 'next-auth/react';
-import { api } from "@/utils/trpc";
+import { api } from '@/utils/trpc';
+import type { User as SupabaseUser } from '@supabase/supabase-js'; // This is important for Supabase's User type
+
+// Define the shape of the user object that your app expects from useAuthStatus
+interface AppUser {
+  id: string;
+  email: string | null;
+  name: string | null;
+  // Add other properties if needed from NextAuth/Supabase user objects
+}
 
 export function useAuthStatus() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: nextAuthSession, status: nextAuthStatus } = useSession(); // Renamed to nextAuthSession for clarity
+  const [appUser, setAppUser] = useState<AppUser | null>(null);
+  const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
   const [isAnonymous, setIsAnonymous] = useState(false);
-
-  const { data: nextAuthSession, status: nextAuthStatus } = useNextAuthSession();
   const ensureUserProfileMutation = api.user.ensureUserProfile.useMutation();
-
-  // Ref to ensure profile mutation only runs once per distinct user ID
   const ensuredProfileIdRef = useRef<string | null>(null);
 
-  // Effect 1: Determine User Session and Set State
+  // Effect 1: Determine User Session and Set AppUser State
   useEffect(() => {
-    // This effect runs to establish the user's initial session state
-    // and whenever NextAuth status changes.
     const determineUserSession = async () => {
-      setLoading(true); // Start loading
+      setStatus('loading'); // Set loading status
 
-      let determinedSession: Session | null = null;
-      let determinedUser: User | null = null;
+      let determinedUser: AppUser | null = null;
       let determinedIsAnonymous = false;
-      let determinedName: string | undefined = undefined;
 
-      // Prioritize NextAuth session if authenticated
+      // Prioritize NextAuth session
       if (nextAuthStatus === 'authenticated' && nextAuthSession?.user?.id) {
         determinedUser = {
           id: nextAuthSession.user.id,
-          email: nextAuthSession.user.email || '',
-          name: nextAuthSession.user.name || nextAuthSession.user.email || '',
-        } as User;
-        determinedSession = nextAuthSession as unknown as Session;
+          email: nextAuthSession.user.email || null,
+          name: nextAuthSession.user.name || null,
+        };
         determinedIsAnonymous = false;
-        determinedName = nextAuthSession.user.name || undefined;
-        console.log("Session determined: Authenticated via NextAuth", determinedUser.id);
+        console.log("AuthStatus: NextAuth session found. User ID:", determinedUser.id);
       } else if (nextAuthStatus === 'unauthenticated') {
         // If NextAuth is definitively unauthenticated, check Supabase directly
         const { data: { session: supabaseSession } } = await supabase.auth.getSession();
 
-        if (supabaseSession) {
-          determinedUser = supabaseSession.user;
-          determinedSession = supabaseSession;
-          determinedIsAnonymous = supabaseSession.user.is_anonymous || false;
-          console.log("Session determined: Supabase session found", determinedUser.id, determinedIsAnonymous ? '(Anonymous)' : '');
+        if (supabaseSession?.user?.id) { // Ensure user.id exists for Supabase session
+          const supabaseUser = supabaseSession.user;
+          determinedUser = {
+            id: supabaseUser.id,
+            email: supabaseUser.email || null,
+            name: (supabaseUser.user_metadata?.full_name as string) || null, // Ensure name is from metadata and nullable
+          };
+          determinedIsAnonymous = supabaseUser.is_anonymous || false;
+          console.log("AuthStatus: Supabase session found. User ID:", determinedUser.id, determinedIsAnonymous ? '(Anonymous)' : '');
         } else {
           // No session found from NextAuth or Supabase, try anonymous sign-in
-          console.log("No session found. Attempting anonymous sign-in...");
+          console.log("AuthStatus: No session found. Attempting anonymous sign-in...");
           const { data, error } = await supabase.auth.signInAnonymously();
-          if (data?.user) {
-            determinedUser = data.user;
-            determinedSession = data.session;
+          if (data?.user?.id) { // Ensure user.id exists after anonymous sign-in
+            const anonUser = data.user;
+            determinedUser = {
+              id: anonUser.id,
+              email: anonUser.email || null, // Will be null for anonymous
+              name: (anonUser.user_metadata?.full_name as string) || null, // Will be null for anonymous
+            };
             determinedIsAnonymous = true;
-            determinedName = undefined;
-            console.log("Session determined: Successfully signed in anonymously", determinedUser.id);
+            console.log("AuthStatus: Successfully signed in anonymously. User ID:", determinedUser.id);
           } else if (error) {
-            console.error("Anonymous sign-in failed:", error.message);
-            // If anonymous sign-in fails, ensure user/session are null
-            determinedUser = null;
-            determinedSession = null;
-            determinedIsAnonymous = false;
+            console.error("AuthStatus: Anonymous sign-in failed:", error.message);
+            // If anonymous sign-in fails, determinedUser remains null
           }
         }
       }
 
-      // Update state once all determination is done
-      setSession(determinedSession);
-      // Ensure the user object passed to state also has the name
-      setUser(determinedUser ? { ...determinedUser, name: determinedName || determinedUser.email } : null); // Update setUser
+      setAppUser(determinedUser);
       setIsAnonymous(determinedIsAnonymous);
-      setLoading(false); // End loading
+      setStatus(determinedUser ? 'authenticated' : 'unauthenticated'); // Set final status
     };
 
-    // Only run when NextAuth status transitions
-    // from 'loading' or when it changes to 'authenticated'/'unauthenticated'.
-    // This makes it less prone to re-running due to internal state changes.
+    // Only run this effect when NextAuth status changes, and not when it's just loading.
     if (nextAuthStatus !== 'loading') {
       determineUserSession();
     }
-  }, [nextAuthStatus, nextAuthSession]); // Dependencies for determining the session
 
-  // Effect 2: Ensure User Profile in DB (reacts to stable `user` state)
+    // Subscribe to Supabase auth state changes for real-time updates (e.g., sign out)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Re-run the auth check if Supabase auth state changes
+      if (nextAuthStatus !== 'loading') { // Only re-check if NextAuth status isn't still loading
+        determineUserSession();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe(); // Clean up subscription
+    };
+  }, [nextAuthStatus, nextAuthSession]); // Dependencies: only re-run if NextAuth status or session changes
+
+  // Effect 2: Ensure User Profile in DB (reacts to stable `appUser` state)
   useEffect(() => {
-    // This effect runs when `user` state (determined by Effect 1) changes.
-    // It calls mutation ONLY if a user is available AND the profile
-    // hasn't been ensured for this specific user ID yet.
-
-    if (user && user.id && ensuredProfileIdRef.current !== user.id) {
-      console.log(`User object updated. Attempting to ensure profile for: ${user.id}`);
+    // Only proceed if appUser is valid and we haven't ensured the profile for this user ID yet.
+    if (appUser?.id && ensuredProfileIdRef.current !== appUser.id) {
+      console.log(`AuthStatus: Attempting to ensure profile for: ${appUser.id}`);
       const executeEnsureProfile = async () => {
         try {
-          await ensureUserProfileMutation.mutateAsync({
-            userId: user.id,
-            email: user.email || undefined,
-            name: user.name || undefined,
-            isAnonymous: isAnonymous, // using state from Effect 1
-          });
-          console.log("Profile ensured successfully for:", user.id);
-          ensuredProfileIdRef.current = user.id;
+          await ensureUserProfileMutation.mutateAsync({ isAnonymous: isAnonymous }); // Only pass isAnonymous
+          console.log("AuthStatus: Profile ensured successfully for:", appUser.id);
+          ensuredProfileIdRef.current = appUser.id; // Mark as done for this ID
         } catch (profileError) {
-          console.error("Error ensuring profile for user:", user.id, profileError);
+          console.error("AuthStatus: Error ensuring profile for user:", appUser.id, profileError);
+          // --- IMPORTANT: Even on error, mark as "attempted" to prevent loop ---
+          ensuredProfileIdRef.current = appUser.id;
         }
       };
       executeEnsureProfile();
-    } else if (!user) {
-      // If user becomes null (after sign out), reset the ref so it can run for next user
+    } else if (!appUser) {
+      // If appUser becomes null (e.g., after sign out), reset the ref so it can run for next user
       ensuredProfileIdRef.current = null;
-      console.log("User is null, resetting ensuredProfileIdRef.");
+      console.log("AuthStatus: appUser is null, resetting ensuredProfileIdRef.");
     }
-  }, [user, isAnonymous, ensureUserProfileMutation]); // Dependencies for ensuring the profile
+  }, [appUser, isAnonymous, ensureUserProfileMutation]); // Dependencies for ensuring the profile
 
-  return { session, user, loading, isAnonymous };
+  return { status, user: appUser, isAnonymous };
 }
