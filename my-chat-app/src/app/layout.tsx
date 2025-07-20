@@ -1,20 +1,31 @@
 // src/app/layout.tsx
-import './globals.css';
-import { TRPCProvider } from '@/components/providers/TRPCProvider';
-import { ReactNode } from 'react';
+import "./globals.css";
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import { NextAuthProvider } from "@/components/providers/NextAuthProvider";
-import { UserStatusBanner } from "@/components/UserStatusBanner"; // Ensure path is correct
+import { TRPCProvider } from "@/components/providers/TRPCProvider";
 
-export default function RootLayout({ children }: { children: ReactNode }) {
-  return (
-    <html lang="en">
-      <body>
-        <TRPCProvider>
-          <NextAuthProvider>
-            {children}
-          </NextAuthProvider>
-        </TRPCProvider>
-      </body>
-    </html>
-  );
+const inter = Inter({ subsets: ["latin"] });
+
+export const metadata: Metadata = {
+	title: "AI Chatbot",
+	description: "A simple and powerful AI chatbot.",
+};
+
+export default function RootLayout({
+	children,
+}: {
+	children: React.ReactNode;
+}) {
+	return (
+		<html lang="en" className="dark">
+			<body className={`${inter.className} bg-gray-900`}>
+                <NextAuthProvider>
+                    <TRPCProvider>
+				        {children}
+                    </TRPCProvider>
+                </NextAuthProvider>
+			</body>
+		</html>
+	);
 }
