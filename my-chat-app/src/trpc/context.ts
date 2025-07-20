@@ -7,30 +7,32 @@ import { type CookieOptions, createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 export async function createContext({ req }: FetchCreateContextFnOptions) {
+  // 1. Check for NextAuth session
   const session = await getServerSession(authOptions);
   if (session) {
     return { session, db };
   }
 
+  // 2. If no NextAuth session, check for a Supabase session (for anonymous users)
   const authHeader = req.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
-
-    const cookieStore = cookies();
+    
+    const cookieStore = cookies(); 
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          async get(name: string) { 
-            return (await cookieStore).get(name)?.value; // Await `cookieStore.get`
+          async get(name: string) {
+            return (await cookieStore).get(name)?.value;
           },
           set(name: string, value: string, options: CookieOptions) {
-            // No-op for read-only context
+            // Read-only context, so no-op
           },
           remove(name: string, options: CookieOptions) {
-            // No-op for read-only context
+            // Read-only context, so no-op
           },
         },
       }
@@ -39,12 +41,13 @@ export async function createContext({ req }: FetchCreateContextFnOptions) {
     const { data: { user } } = await supabase.auth.getUser(token);
 
     if (user) {
-      const userWithClaims = user as any; 
+      //mock session object that looks like NextAuth session
+      const userWithClaims = user as any;
       const mockSession: Session = {
         user: {
           id: user.id,
           email: user.email || null,
-          name: user.user_metadata.full_name || null,
+          name: user.user_metadata?.full_name || null,
         },
         expires: new Date(userWithClaims.exp * 1000).toISOString(),
       };
@@ -52,6 +55,7 @@ export async function createContext({ req }: FetchCreateContextFnOptions) {
     }
   }
 
+  // 3. If no session found, return null
   return { session: null, db };
 }
 

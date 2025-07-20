@@ -1,8 +1,12 @@
+// src/app/api/auth/[...nextauth]/route.ts
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { createClient } from "@supabase/supabase-js"; // Import Supabase client
+import { createClient } from "@supabase/supabase-js";
 import type { AuthOptions } from "next-auth";
-import { email } from "zod";
+
+//imports for Drizzle
+import { db } from "@/server/db/client";
+import { users } from "@/server/db/schema";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -17,7 +21,6 @@ export const authOptions: AuthOptions = {
                 password: { label: "Password", type: "password" },
                 confirmPassword: { label: "Confirm Password", type: "password" },
                 name: { label: "Name", type: "text" },
-                //a 'mode' to differentiate between sign-up and sign-in
                 mode: { label: "Mode", type: "hidden" },
             },
             async authorize(credentials, req) {
@@ -35,10 +38,9 @@ export const authOptions: AuthOptions = {
                     const { data, error } = await supabase.auth.signUp({
                         email: credentials.email,
                         password: credentials.password,
-                        // Pass user_metadata for Supabase to store the name
                         options: {
                             data: {
-                                full_name: credentials.name, // Supabase often expects snake_case for metadata
+                                full_name: credentials.name,
                             },
                         },
                     });
@@ -52,12 +54,25 @@ export const authOptions: AuthOptions = {
                         throw new Error("User data not returned after sign up.");
                     }
 
+                    // After creating auth user, insert data into public `users` table.
+                    try {
+                        await db.insert(users).values({
+                            id: data.user.id,
+                            email: data.user.email,
+                            name: credentials.name,
+                            isAnonymous: false,
+                        });
+                    } catch (dbError) {
+                        console.error("Database error creating user profile:", dbError);
+                        // If this fails, auth user created but public profile was not.
+                        throw new Error("Failed to create user profile after sign up.");
+                    }
+
                     // Return user data for the session
                     return {
                         id: data.user.id,
                         email: data.user.email,
                         name: credentials.name,
-                        // other relevant user data as needed
                     };
 
                 } else {
@@ -76,50 +91,35 @@ export const authOptions: AuthOptions = {
                         throw new Error("User data not returned after sign in.");
                     }
 
-                    // For sign-in, try to fetch name from user_metadata or your public.users table
-                    const user_name = data.user.user_metadata?.full_name || data.user.email; // Fallback to email
+                    const user_name = data.user.user_metadata?.full_name || data.user.email;
                     return {
                         id: data.user.id,
                         email: data.user.email,
-                        name: user_name, // Add name for signed-in user
+                        name: user_name,
                     };
                 }
             },
         }),
     ],
     session: {
-        strategy: "jwt" as const, // JWT for session management
+        strategy: "jwt" as const,
     },
     jwt: {
         secret: process.env.NEXTAUTH_SECRET,
     },
     callbacks: {
-        async jwt({
-            token,
-            user,
-            account,
-        }: {
-            token: any;
-            user?: any;
-            account?: any;
-        }) {
+        async jwt({ token, user }) {
             if (user) {
                 token.id = user.id;
-            }
-            if (account?.access_token) {
-                token.accessToken = account.access_token;
+                token.name = user.name as string;
             }
             return token;
         },
-        async session({
-            session,
-            token,
-        }: {
-            session: any;
-            token: any;
-        }) {
-            session.user.id = token.id;
-            session.accessToken = token.accessToken;
+        async session({ session, token }) {
+            if (session.user) {
+                session.user.id = token.id as string;
+                session.user.name = token.name as string;
+            }
             return session;
         },
     },
