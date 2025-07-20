@@ -1,34 +1,23 @@
 // src/components/UserStatusBanner.tsx
 "use client";
 
-import { useAuthStatus } from "@/hooks/useAuthStatus"; // Changed import
+import { useSession } from "next-auth/react";
 
 export function UserStatusBanner() {
-  const { isAnonymous, loading, user } = useAuthStatus();
+  const { data: session, status } = useSession();
 
-  if (loading) {
-    return (
-      <div className="bg-gray-200 text-black p-3 text-sm animate-pulse">
-        Checking user status...
-      </div>
-    );
+  if (status === 'loading' || !session?.user) {
+    return null;
   }
 
-  // If user is null after loading, it means sign-in anonymously might have failed or not happened yet fully
-  if (!user) {
-      return (
-          <div className="bg-red-200 text-black p-3 text-sm">
-            Could not determine user status. Please try refreshing or signing in.
-          </div>
-      );
+  if (session.user.isAnonymous) {
+    return null;
   }
 
-
+  //for logged-in user, show the welcome message
   return (
     <div className="bg-yellow-200 text-black p-3 text-sm">
-      {isAnonymous
-        ? "You're using the app as a guest. Chat history will be saved to this device." // Clarified saving
-        : `Welcome back, ${user.name || user.email || 'User'}!`}
+      Welcome back, {session.user.name || session.user.email || 'User'}!
     </div>
   );
 }
