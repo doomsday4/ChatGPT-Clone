@@ -1,7 +1,7 @@
 // src/app/page.tsx
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { api } from '@/utils/trpc';
 import { Button } from '@/components/ui/button';
@@ -9,42 +9,30 @@ import { Input } from '@/components/ui/input';
 import { UserStatusBanner } from '@/components/UserStatusBanner';
 import { NextAuthProvider } from '@/components/providers/NextAuthProvider';
 import { TRPCProvider } from '@/components/providers/TRPCProvider';
-import { v4 as uuidv4 } from 'uuid'; //to create temporary IDs
+import { v4 as uuidv4 } from 'uuid';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 function ChatPage() {
     const { data: session, status } = useSession();
     const [message, setMessage] = useState('');
     const [conversationId, setConversationId] = useState<string | null>(null);
-    const utils = api.useUtils(); //tRPC utils for cache manipulation
+    const utils = api.useUtils();
+    const chatContainerRef = useRef<HTMLDivElement>(null);
     const [isLoading] = useState(false);
 
-    //QUERIES
     const messages = api.chat.getMessages.useQuery(
         { conversationId: conversationId! },
         { enabled: !!conversationId }
     );
-
-    //MUTATIONS
-    const createConversationMutation = api.chat.createConversation.useMutation({
-        onSuccess: (data) => {
-            setConversationId(data.id);
-            // After creating a conversation -trigger the initial message send
-            handleSendMessage(null, data.id);
-        },
-        onError: (error) => {
-            console.error("Failed to create conversation:", error);
-        }
-    });
-
+    const createConversationMutation = api.chat.createConversation.useMutation();
     const sendMessageMutation = api.chat.sendMessage.useMutation({
         onMutate: async (newMessage) => {
             await utils.chat.getMessages.cancel({ conversationId });
-
             const previousMessages = utils.chat.getMessages.getData({ conversationId });
-
             utils.chat.getMessages.setData({ conversationId }, (oldData) => {
                 const optimisticMessage = {
-                    id: uuidv4(), //temporary UUID
+                    id: uuidv4(),
                     conversationId: newMessage.conversationId,
                     userId: session!.user.id,
                     role: 'user' as const,
@@ -53,12 +41,9 @@ function ChatPage() {
                 };
                 return oldData ? [...oldData, optimisticMessage] : [optimisticMessage];
             });
-
             return { previousMessages };
         },
-        // If mutation fails, using context returned from onMutate to roll back
         onError: (err, newMessage, context) => {
-            console.error("Failed to send message:", err);
             if (context?.previousMessages) {
                 utils.chat.getMessages.setData({ conversationId }, context.previousMessages);
             }
@@ -68,28 +53,41 @@ function ChatPage() {
         },
     });
 
-    const handleSendMessage = async (e: React.FormEvent | null, convId?: string) => {
-        e?.preventDefault();
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
         const contentToSend = message;
         if (!contentToSend.trim() || !session) return;
 
-        // Clearing input box immediately
+        // Clear input immediately
         setMessage('');
 
-        const currentConversationId = convId || conversationId;
+        let currentConvId = conversationId;
 
-        // --- Step 1: If no conversation exists, creating one ---
-        if (!currentConversationId) {
-            createConversationMutation.mutate({});
-            return;
+        // If no conversation exists, create one
+        if (!currentConvId) {
+            try {
+                const newConversation = await createConversationMutation.mutateAsync({});
+                setConversationId(newConversation.id);
+                currentConvId = newConversation.id;
+            } catch (error) {
+                console.error("Failed to create conversation:", error);
+                setMessage(contentToSend);
+                return;
+            }
         }
 
-        // --- Step 2: Call server to send message ---
         sendMessageMutation.mutate({
-            conversationId: currentConversationId,
+            conversationId: currentConvId,
             content: contentToSend,
         });
     };
+
+    // Auto-scroll features
+    useEffect(() => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+    }, [messages.data]);
 
     if (status === 'loading') {
         return <p className="flex h-screen items-center justify-center">Loading session...</p>;
@@ -111,15 +109,24 @@ function ChatPage() {
                 <h1 className="text-xl">Chat</h1>
                 <Button onClick={() => signOut()}>Sign Out</Button>
             </div>
-            <div className="flex-grow overflow-y-auto border p-4 rounded-lg mb-4 bg-white/5">
+            <div ref={chatContainerRef} className="flex-grow overflow-y-auto border p-4 rounded-lg mb-4 bg-white/5">
                 {messages.data?.map((msg) => (
-                     <div
+                    <div
                         key={msg.id}
-                        className={`mb-3 p-3 rounded-lg w-fit max-w-[80%] text-black ${
-                            msg.role === 'user' ? 'bg-blue-200 ml-auto' : 'bg-gray-200 mr-auto'
-                        }`}
+                        className={`mb-3 w-fit max-w-[90%] ${msg.role === 'user' ? 'ml-auto' : 'mr-auto'
+                            }`}
                     >
-                        <p className="text-sm">{msg.content}</p>
+                        <div
+                            className={`p-3 rounded-lg text-black ${msg.role === 'user' ? 'bg-blue-200' : 'bg-gray-200'
+                                }`}
+                        >
+                            <ReactMarkdown
+                                components={{}} // Add this line to satisfy the type
+                                remarkPlugins={[remarkGfm]}
+                            >
+                                {msg.content}
+                            </ReactMarkdown>
+                        </div>
                     </div>
                 ))}
                 {isLoading && <p className="text-sm text-gray-400">AI is thinking...</p>}
