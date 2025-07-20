@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth';
 import ChatClient from './ChatClient';
 
 //now a Server Component only - to protect the route
-export default async function Page() {
+export default async function Home() {
   // 1. Get the session on the server.
   const session = await getServerSession(authOptions);
 
