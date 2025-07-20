@@ -12,8 +12,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <TRPCProvider>
           <NextAuthProvider>
             {children}
-            {/* UserStatusBanner should be inside NextAuthProvider to access session context */}
-            <UserStatusBanner />
           </NextAuthProvider>
         </TRPCProvider>
       </body>
