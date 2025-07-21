@@ -11,7 +11,44 @@ import { v4 as uuidv4 } from 'uuid';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { format, isToday, isYesterday } from 'date-fns';
-import { SendHorizontal, Menu, X, Bot, User, Plus } from 'lucide-react';
+import { SendHorizontal, Menu, X, Bot, User, Plus, Check, Copy } from 'lucide-react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+
+const CodeBlock = ({ node, inline, className, children, ...props }: any) => {
+    const [isCopied, setIsCopied] = useState(false);
+    const match = /language-(\w+)/.exec(className || '');
+    const codeString = String(children).replace(/\n$/, '');
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(codeString);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000); // Revert after 2 seconds
+    };
+
+    return !inline && match ? (
+        <div className="relative my-4 rounded-lg bg-[#1E1E1E]">
+            <div className="flex items-center justify-between px-4 py-2 bg-gray-700/50 rounded-t-lg">
+                <span className="text-xs font-sans text-gray-400">{match[1]}</span>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-white" onClick={handleCopy}>
+                    {isCopied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+                </Button>
+            </div>
+            <SyntaxHighlighter
+                style={vscDarkPlus}
+                language={match[1]}
+                PreTag="div"
+                {...props}
+            >
+                {codeString}
+            </SyntaxHighlighter>
+        </div>
+    ) : (
+        <code className="bg-gray-700 text-red-400 rounded px-1.5 py-1 font-mono text-sm" {...props}>
+            {children}
+        </code>
+    );
+};
 
 export default function ChatClient() {
     const { data: session } = useSession();
@@ -85,7 +122,7 @@ export default function ChatClient() {
             content: contentToSend,
         });
     };
-    
+
     const handleNewChat = () => {
         setActiveConversationId(null);
         setMessage('');
@@ -139,7 +176,7 @@ export default function ChatClient() {
                     </Button>
                 </div>
             </aside>
-            
+
             {isSidebarOpen && <div className="fixed inset-0 bg-black/60 z-10 md:hidden" onClick={() => setIsSidebarOpen(false)}></div>}
 
             <main className="flex-1 flex flex-col bg-white dark:bg-gray-900/50">
@@ -161,7 +198,11 @@ export default function ChatClient() {
                                     {msg.role === 'user' ? <User className="h-5 w-5 text-white" /> : <Bot className="h-5 w-5 text-white" />}
                                 </div>
                                 <div className={`px-4 py-3 rounded-2xl text-base ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-lg' : 'bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-lg'}`}>
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                        components={{ code: CodeBlock }}
+                                    >
+                                        {msg.content}</ReactMarkdown>
                                 </div>
                             </div>
                         ))

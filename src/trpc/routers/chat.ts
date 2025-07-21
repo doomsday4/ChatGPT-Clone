@@ -71,6 +71,12 @@ export const chatRouter = router({
                 orderBy: (messages, { asc }) => [asc(messages.createdAt)],
             });
 
+            //system instruction to tell AI how to behave
+            const systemInstruction = {
+                role: "user",
+                parts: [{ text: "Always format code snippets using Markdown code blocks with the appropriate language identifier (e.g., ```javascript)." }],
+            };
+
             const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
             const chatHistory = previousMessages.map(msg => ({
                 role: msg.role === 'assistant' ? 'model' : 'user',
@@ -83,7 +89,7 @@ export const chatRouter = router({
             }
 
             try {
-                const chat = model.startChat({ history: chatHistory });
+                const chat = model.startChat({ history: [systemInstruction, ...chatHistory], });
                 const result = await chat.sendMessage(latestMessage.parts);
                 const response = result.response;
                 const assistantResponseContent = response.text();
