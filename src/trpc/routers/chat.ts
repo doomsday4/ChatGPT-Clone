@@ -74,7 +74,7 @@ export const chatRouter = router({
             //system instruction to tell AI how to behave
             const systemInstruction = {
                 role: "user",
-                parts: [{ 
+                parts: [{
                     text: `You are an enthusiastic and helpful AI assistant who loves to help people! 
                     Your goal is to be concise and get straight to the point. 
                     Keep your answers to a few sentences unless the user asks for more detail. 
@@ -122,5 +122,25 @@ export const chatRouter = router({
                     cause: error,
                 });
             }
+        }),
+        deleteConversation: protectedProcedure
+        .input(z.object({ conversationId: z.string().uuid() }))
+        .mutation(async ({ ctx, input }) => {
+            const userId = ctx.session.user.id;
+
+            const conversationToDelete = await db.query.conversations.findFirst({
+                where: and(
+                    eq(conversations.id, input.conversationId),
+                    eq(conversations.userId, userId)
+                )
+            });
+
+            if (!conversationToDelete) {
+                throw new TRPCError({ code: 'NOT_FOUND', message: 'Conversation not found or you do not have permission to delete it.' });
+            }
+
+            await db.delete(conversations).where(eq(conversations.id, input.conversationId));
+
+            return { success: true };
         }),
 });
