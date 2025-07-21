@@ -1,19 +1,10 @@
 // src/app/page.tsx
-import { redirect } from 'next/navigation';
-import { authOptions } from '@/lib/auth';
-import { getServerSession } from 'next-auth';
-import ChatClient from './ChatClient';
 
-//now a Server Component only - to protect the route
-export default async function Home() {
-  // 1. Get the session on the server.
-  const session = await getServerSession(authOptions);
-
-  // 2. If no session exists, redirect to the sign-in page.
-  if (!session) {
-    redirect('/auth/signin');
-  }
-
-  // 3. If a session exists, render the client component.
-  return <ChatClient />;
+export default function Home() {
+  return (
+    <div>
+      <h1>Hello, Vercel!</h1>
+      <p>If you can see this, the basic Next.js app is working.</p>
+    </div>
+  );
 }
