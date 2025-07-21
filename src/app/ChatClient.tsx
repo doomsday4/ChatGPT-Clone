@@ -11,7 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { format, isToday, isYesterday } from 'date-fns';
-import { SendHorizontal, Menu, X, Bot, User, Plus, Check, Copy } from 'lucide-react';
+import { SendHorizontal, Menu, X, Bot, User, Plus, Check, Copy, Trash2 } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 
@@ -23,7 +23,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }: any) => {
     const handleCopy = () => {
         navigator.clipboard.writeText(codeString);
         setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000); // Revert after 2 seconds
+        setTimeout(() => setIsCopied(false), 2000);
     };
 
     return !inline && match ? (
@@ -34,12 +34,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }: any) => {
                     {isCopied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
                 </Button>
             </div>
-            <SyntaxHighlighter
-                style={vscDarkPlus}
-                language={match[1]}
-                PreTag="div"
-                {...props}
-            >
+            <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" {...props}>
                 {codeString}
             </SyntaxHighlighter>
         </div>
@@ -57,6 +52,7 @@ export default function ChatClient() {
     const utils = api.useUtils();
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
     const [isLoading] = useState(false);
 
     const isAnonymous = session?.user?.isAnonymous ?? false;
@@ -97,6 +93,19 @@ export default function ChatClient() {
                 utils.chat.getConversations.invalidate();
             }
         },
+    });
+
+    const deleteConversationMutation = api.chat.deleteConversation.useMutation({
+        onSuccess: () => {
+            setConversationToDelete(null);
+            if (activeConversationId === conversationToDelete) {
+                setActiveConversationId(null);
+            }
+            utils.chat.getConversations.invalidate();
+        },
+        onError: (error) => {
+            console.error("Failed to delete conversation:", error);
+        }
     });
 
     const handleSendMessage = async (e: React.FormEvent) => {
@@ -160,13 +169,27 @@ export default function ChatClient() {
                         <div className="flex-grow overflow-y-auto -mr-2 pr-2">
                             <ul className="space-y-1">
                                 {conversationsQuery.data?.map((conv) => (
-                                    <li key={conv.id}>
+                                    <li key={conv.id} className="relative group">
                                         <button onClick={() => { setActiveConversationId(conv.id); setIsSidebarOpen(false); }} className={`w-full text-left p-2.5 rounded-lg transition-colors duration-200 ${activeConversationId === conv.id ? 'bg-blue-600/20 text-white' : 'text-gray-300 hover:bg-white/10'}`}>
                                             <div className="flex justify-between items-center w-full">
                                                 <span className="truncate pr-2 text-sm font-medium">{conv.title}</span>
-                                                <span className="text-xs text-gray-500 flex-shrink-0">{formatHistoryTimestamp(new Date(conv.updatedAt))}</span>
+                                                {/* this span now fades out on hover */}
+                                                <span className="text-xs text-gray-500 flex-shrink-0 transition-opacity group-hover:opacity-0">{formatHistoryTimestamp(new Date(conv.updatedAt))}</span>
                                             </div>
                                         </button>
+                                        <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7 text-gray-500 hover:text-red-400 hover:bg-red-500/10"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setConversationToDelete(conv.id);
+                                                }}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
                                     </li>
                                 ))}
                             </ul>
@@ -178,12 +201,10 @@ export default function ChatClient() {
                             </Button>
                         </div>
                     </aside>
-                    
+
                     {isSidebarOpen && <div className="fixed inset-0 bg-black/60 z-10 md:hidden" onClick={() => setIsSidebarOpen(false)}></div>}
                 </>
             )}
-
-            {isSidebarOpen && <div className="fixed inset-0 bg-black/60 z-10 md:hidden" onClick={() => setIsSidebarOpen(false)}></div>}
 
             <main className="flex-1 flex flex-col bg-white dark:bg-gray-900/50">
                 <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-white/10">
@@ -192,7 +213,7 @@ export default function ChatClient() {
                             <Menu className="h-6 w-6" />
                         </Button>
                     ) : (
-                        <div className="w-8 h-8"></div> // Placeholder to keep title centered
+                        <div className="w-8 h-8"></div>
                     )}
                     <h2 className="text-lg font-semibold text-gray-800 dark:text-white truncate">
                         {isAnonymous ? "Guest Chat" : (activeConversationId ? conversationsQuery.data?.find(c => c.id === activeConversationId)?.title : "New Conversation")}
@@ -202,7 +223,7 @@ export default function ChatClient() {
 
                 <div ref={chatContainerRef} className="flex-grow overflow-y-auto p-6 space-y-6">
                     {isAnonymous && !messagesQuery.data?.length && (
-                         <div className="text-center mb-4 p-3 bg-blue-900/50 rounded-lg text-sm text-blue-200">
+                        <div className="text-center mb-4 p-3 bg-blue-900/50 rounded-lg text-sm text-blue-200">
                             You are chatting as a guest. <Button variant="link" className="p-0 h-auto text-blue-300 hover:text-blue-200" onClick={() => signIn()}>Sign in</Button> to save your history.
                         </div>
                     )}
@@ -240,9 +261,9 @@ export default function ChatClient() {
                             </div>
                             <div className="px-4 py-3 rounded-2xl bg-gray-200 dark:bg-gray-800">
                                 <div className="flex items-center gap-2">
-                                    <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                                    <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                                    <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce"></div>
+                                    <div className="h-2 w-2 bg-blue-500 rounded-full animate-thinking [animation-delay:-0.3s]"></div>
+                                    <div className="h-2 w-2 bg-blue-500 rounded-full animate-thinking [animation-delay:-0.15s]"></div>
+                                    <div className="h-2 w-2 bg-blue-500 rounded-full animate-thinking"></div>
                                 </div>
                             </div>
                         </div>
@@ -250,7 +271,7 @@ export default function ChatClient() {
                 </div>
 
                 <div className="px-6 py-4 bg-white dark:bg-gray-900/50 border-t border-gray-200 dark:border-white/10">
-                    <form onSubmit={handleSendMessage} className="flex items-center gap-2 bg-gray-100 dark:bg-black rounded-xl p-2 border-2 border-transparent transition-colors">
+                    <form onSubmit={handleSendMessage} className="flex items-center gap-2 bg-gray-100 dark:bg-black rounded-xl p-2 border-2 border-transparent focus-within:border-blue-600 transition-colors">
                         <Input
                             type="text"
                             value={message}
@@ -259,12 +280,34 @@ export default function ChatClient() {
                             className="flex-grow bg-transparent border-none focus:ring-0 text-gray-900 dark:text-white text-base"
                             disabled={isLoading}
                         />
-                        <Button type="submit" size="icon" className="bg-blue-700 hover:bg-blue-600 rounded-lg w-10 h-10 flex-shrink-0" disabled={isLoading || !message.trim()}>
+                        <Button type="submit" size="icon" className="bg-blue-600 hover:bg-blue-700 rounded-lg w-10 h-10 flex-shrink-0" disabled={isLoading || !message.trim()}>
                             <SendHorizontal className="h-5 w-5 text-white" />
                         </Button>
                     </form>
                 </div>
             </main>
+            {conversationToDelete && (
+                <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
+                    <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm">
+                        <h2 className="text-lg font-semibold text-white">Delete Conversation</h2>
+                        <p className="text-sm text-gray-400 mt-2">
+                            Are you sure you want to delete this chat? This action cannot be undone.
+                        </p>
+                        <div className="mt-6 flex justify-end space-x-4">
+                            <Button variant="outline" onClick={() => setConversationToDelete(null)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                onClick={() => deleteConversationMutation.mutate({ conversationId: conversationToDelete })}
+                                disabled={isLoading}
+                            >
+                                {isLoading ? 'Deleting...' : 'Yes, delete'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
