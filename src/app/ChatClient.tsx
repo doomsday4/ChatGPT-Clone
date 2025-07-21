@@ -143,55 +143,71 @@ export default function ChatClient() {
 
     return (
         <div className="flex h-screen w-full bg-gray-100 dark:bg-black overflow-hidden font-sans">
-            <aside className={`absolute top-0 left-0 h-full z-20 w-72 flex-shrink-0 bg-black p-4 flex flex-col transition-transform duration-300 ease-in-out 
-                ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
-                md:relative md:translate-x-0`}>
-                <div className="flex items-center justify-between mb-4">
-                    <h1 className="text-xl font-semibold text-white">Chat History</h1>
-                    <Button variant="ghost" size="icon" className="md:hidden text-gray-400 hover:text-white" onClick={() => setIsSidebarOpen(false)}>
-                        <X className="h-6 w-6" />
-                    </Button>
-                </div>
-                <Button onClick={handleNewChat} className="mb-4 w-full bg-blue-700 text-white hover:bg-blue-600 flex items-center gap-2 font-semibold">
-                    <Plus className="h-4 w-4" /> New Chat
-                </Button>
-                <div className="flex-grow overflow-y-auto -mr-2 pr-2">
-                    <ul className="space-y-1">
-                        {conversationsQuery.data?.map((conv) => (
-                            <li key={conv.id}>
-                                <button onClick={() => { setActiveConversationId(conv.id); setIsSidebarOpen(false); }} className={`w-full text-left p-2.5 rounded-lg transition-colors duration-200 ${activeConversationId === conv.id ? 'bg-blue-600/20 text-white' : 'text-gray-300 hover:bg-white/10'}`}>
-                                    <div className="flex justify-between items-center w-full">
-                                        <span className="truncate pr-2 text-sm font-medium">{conv.title}</span>
-                                        <span className="text-xs text-gray-500 flex-shrink-0">{formatHistoryTimestamp(new Date(conv.updatedAt))}</span>
-                                    </div>
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-                <div className="mt-auto pt-4 border-t border-white/10">
-                    <UserStatusBanner />
-                    <Button onClick={() => signOut()} className="w-full mt-2 bg-red-600/30 text-red-300 hover:bg-red-600/40 hover:text-red-200 font-semibold">
-                        Sign Out
-                    </Button>
-                </div>
-            </aside>
+            {!isAnonymous && (
+                <>
+                    <aside className={`absolute top-0 left-0 h-full z-20 w-72 flex-shrink-0 bg-black p-4 flex flex-col transition-transform duration-300 ease-in-out 
+                        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
+                        md:relative md:translate-x-0`}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h1 className="text-xl font-semibold text-white">Chat History</h1>
+                            <Button variant="ghost" size="icon" className="md:hidden text-gray-400 hover:text-white" onClick={() => setIsSidebarOpen(false)}>
+                                <X className="h-6 w-6" />
+                            </Button>
+                        </div>
+                        <Button onClick={handleNewChat} className="mb-4 w-full bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2 font-semibold">
+                            <Plus className="h-4 w-4" /> New Chat
+                        </Button>
+                        <div className="flex-grow overflow-y-auto -mr-2 pr-2">
+                            <ul className="space-y-1">
+                                {conversationsQuery.data?.map((conv) => (
+                                    <li key={conv.id}>
+                                        <button onClick={() => { setActiveConversationId(conv.id); setIsSidebarOpen(false); }} className={`w-full text-left p-2.5 rounded-lg transition-colors duration-200 ${activeConversationId === conv.id ? 'bg-blue-600/20 text-white' : 'text-gray-300 hover:bg-white/10'}`}>
+                                            <div className="flex justify-between items-center w-full">
+                                                <span className="truncate pr-2 text-sm font-medium">{conv.title}</span>
+                                                <span className="text-xs text-gray-500 flex-shrink-0">{formatHistoryTimestamp(new Date(conv.updatedAt))}</span>
+                                            </div>
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div className="mt-auto pt-4 border-t border-white/10">
+                            <UserStatusBanner />
+                            <Button onClick={() => signOut()} className="w-full mt-2 bg-red-600/20 text-red-300 hover:bg-red-600/30 hover:text-red-200 font-semibold">
+                                Sign Out
+                            </Button>
+                        </div>
+                    </aside>
+                    
+                    {isSidebarOpen && <div className="fixed inset-0 bg-black/60 z-10 md:hidden" onClick={() => setIsSidebarOpen(false)}></div>}
+                </>
+            )}
 
             {isSidebarOpen && <div className="fixed inset-0 bg-black/60 z-10 md:hidden" onClick={() => setIsSidebarOpen(false)}></div>}
 
             <main className="flex-1 flex flex-col bg-white dark:bg-gray-900/50">
                 <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-white/10">
-                    <Button variant="ghost" size="icon" className="md:hidden text-gray-800 dark:text-white" onClick={() => setIsSidebarOpen(true)}>
-                        <Menu className="h-6 w-6" />
-                    </Button>
+                    {!isAnonymous ? (
+                        <Button variant="ghost" size="icon" className="md:hidden text-gray-800 dark:text-white" onClick={() => setIsSidebarOpen(true)}>
+                            <Menu className="h-6 w-6" />
+                        </Button>
+                    ) : (
+                        <div className="w-8 h-8"></div> // Placeholder to keep title centered
+                    )}
                     <h2 className="text-lg font-semibold text-gray-800 dark:text-white truncate">
-                        {activeConversationId ? conversationsQuery.data?.find(c => c.id === activeConversationId)?.title : "New Conversation"}
+                        {isAnonymous ? "Guest Chat" : (activeConversationId ? conversationsQuery.data?.find(c => c.id === activeConversationId)?.title : "New Conversation")}
                     </h2>
                     <div className="w-8 h-8"></div>
                 </header>
 
                 <div ref={chatContainerRef} className="flex-grow overflow-y-auto p-6 space-y-6">
-                    {activeConversationId ? (
+                    {isAnonymous && !messagesQuery.data?.length && (
+                         <div className="text-center mb-4 p-3 bg-blue-900/50 rounded-lg text-sm text-blue-200">
+                            You are chatting as a guest. <Button variant="link" className="p-0 h-auto text-blue-300 hover:text-blue-200" onClick={() => signIn()}>Sign in</Button> to save your history.
+                        </div>
+                    )}
+
+                    {(activeConversationId || isAnonymous) ? (
                         messagesQuery.data?.map((msg) => (
                             <div key={msg.id} className={`flex items-start gap-4 max-w-2xl ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}>
                                 <div className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${msg.role === 'user' ? 'bg-blue-600' : 'bg-gray-700'}`}>
