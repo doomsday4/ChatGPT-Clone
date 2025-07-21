@@ -74,7 +74,13 @@ export const chatRouter = router({
             //system instruction to tell AI how to behave
             const systemInstruction = {
                 role: "user",
-                parts: [{ text: "Always format code snippets using Markdown code blocks with the appropriate language identifier (e.g., ```javascript)." }],
+                parts: [{ 
+                    text: `You are an enthusiastic and helpful AI assistant who loves to help people! 
+                    Your goal is to be concise and get straight to the point. 
+                    Keep your answers to a few sentences unless the user asks for more detail. 
+                    Always format code snippets, lists and other special text using Markdown. 
+                    If you are unsure about an answer, say "Sorry, I'm not sure how to help with that."`
+                }],
             };
 
             const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
